@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Plugin Prensa AllCMS
  * Description: Plugin propio para gestionar noticias de prensa con logos principales, descripción y enlaces de noticias que muestran automáticamente el logo del medio usando Media Logos.
- * Version: 1.0.2
+ * Version: 1.0.3
  * Author: Lucas Román y Víctor Nieves
  */
 
@@ -59,14 +59,14 @@ function ppa_cargar_assets_admin( $hook ) {
         'ppa-admin-css',
         plugin_dir_url( __FILE__ ) . 'assets/css/admin.css',
         [],
-        '1.0.2'
+        '1.0.3'
     );
 
     wp_enqueue_script(
         'ppa-admin-js',
         plugin_dir_url( __FILE__ ) . 'assets/js/admin.js',
         [ 'jquery' ],
-        '1.0.2',
+        '1.0.3',
         true
     );
 }
@@ -78,7 +78,7 @@ function ppa_cargar_assets_frontend() {
         'ppa-frontend-css',
         plugin_dir_url( __FILE__ ) . 'assets/css/frontend.css',
         [],
-        '1.0.2'
+        '1.0.3'
     );
 }
 
@@ -436,6 +436,24 @@ function ppa_pagina_formulario() {
                 <tr>
                     <th><label>Enlaces de noticias</label></th>
                     <td>
+                        <p>
+                            <label><strong>Pegar varios enlaces de golpe</strong></label><br>
+                            <textarea name="ppa_urls_masivas"
+                                      class="large-text"
+                                      rows="10"
+                                      placeholder="Pega aquí todos los enlaces, uno por línea"></textarea>
+                        </p>
+
+                        <p class="description">
+                            Puedes pegar muchos enlaces a la vez, uno por línea. Al guardar, el plugin buscará automáticamente el logo de cada medio usando Media Logos.
+                        </p>
+
+                        <hr>
+
+                        <p>
+                            <strong>Enlaces guardados actualmente</strong>
+                        </p>
+
                         <div id="ppa_enlaces_noticias">
                             <?php if ( ! empty( $enlaces_noticias ) ) : ?>
                                 <?php foreach ( $enlaces_noticias as $enlace ) : ?>
@@ -447,11 +465,11 @@ function ppa_pagina_formulario() {
                         </div>
 
                         <button type="button" class="button" id="ppa_anadir_enlace_noticia">
-                            Añadir otro enlace de noticia
+                            Añadir enlace manualmente
                         </button>
 
                         <p class="description">
-                            Pega la URL completa de la noticia. El plugin buscará automáticamente el logo usando el dominio registrado en Media Logos.
+                            Si quieres añadir solo uno, usa el botón manual. Si quieres añadir muchos, usa el cuadro grande de arriba.
                         </p>
                     </td>
                 </tr>
@@ -574,7 +592,11 @@ function ppa_guardar_noticia() {
     }
 
     $enlaces_noticias = [];
+    $urls_procesadas  = [];
 
+    /*
+     * 1. Enlaces individuales ya existentes o añadidos manualmente.
+     */
     if ( isset( $_POST['ppa_url_noticia'] ) && is_array( $_POST['ppa_url_noticia'] ) ) {
         foreach ( $_POST['ppa_url_noticia'] as $url_noticia ) {
             $url_noticia = trim( $url_noticia );
@@ -582,6 +604,57 @@ function ppa_guardar_noticia() {
             if ( empty( $url_noticia ) ) {
                 continue;
             }
+
+            if ( ! preg_match( '#^https?://#i', $url_noticia ) ) {
+                $url_noticia = 'https://' . $url_noticia;
+            }
+
+            $url_clave = strtolower( rtrim( $url_noticia, '/' ) );
+
+            if ( in_array( $url_clave, $urls_procesadas, true ) ) {
+                continue;
+            }
+
+            $urls_procesadas[] = $url_clave;
+
+            $medio = ppa_obtener_medio_por_url_noticia( $url_noticia );
+
+            if ( ! empty( $medio['url'] ) ) {
+                $enlaces_noticias[] = [
+                    'nombre' => sanitize_text_field( $medio['nombre'] ),
+                    'logo'   => esc_url_raw( $medio['logo'] ),
+                    'url'    => esc_url_raw( $medio['url'] ),
+                ];
+            }
+        }
+    }
+
+    /*
+     * 2. Enlaces pegados en bloque desde el textarea grande.
+     */
+    $urls_masivas = sanitize_textarea_field( $_POST['ppa_urls_masivas'] ?? '' );
+
+    if ( ! empty( $urls_masivas ) ) {
+        $lineas = preg_split( '/[\r\n]+/', $urls_masivas );
+
+        foreach ( $lineas as $url_noticia ) {
+            $url_noticia = trim( $url_noticia );
+
+            if ( empty( $url_noticia ) ) {
+                continue;
+            }
+
+            if ( ! preg_match( '#^https?://#i', $url_noticia ) ) {
+                $url_noticia = 'https://' . $url_noticia;
+            }
+
+            $url_clave = strtolower( rtrim( $url_noticia, '/' ) );
+
+            if ( in_array( $url_clave, $urls_procesadas, true ) ) {
+                continue;
+            }
+
+            $urls_procesadas[] = $url_clave;
 
             $medio = ppa_obtener_medio_por_url_noticia( $url_noticia );
 
