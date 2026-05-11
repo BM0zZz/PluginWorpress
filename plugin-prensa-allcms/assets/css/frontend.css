@@ -1,0 +1,186 @@
+.ppa-prensa-grid {
+    display: grid;
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+    gap: 28px;
+    margin: 30px 0;
+}
+
+.ppa-prensa-card {
+    display: grid;
+    grid-template-columns: 1.25fr 0.75fr;
+    gap: 30px;
+    border: 1px solid #d5d9e2;
+    border-radius: 8px;
+    padding: 34px 38px 34px 24px;
+    background: #ffffff;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
+    align-items: start;
+}
+
+.ppa-prensa-fecha {
+    font-size: 15px;
+    color: #6b7280;
+    margin-bottom: 30px;
+}
+
+.ppa-prensa-logos-principales {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 30px !important;
+    margin-bottom: 65px !important;
+    margin-left: -8px;
+    flex-wrap: nowrap;
+}
+
+.ppa-prensa-logo-principal,
+.ppa-prensa-logos-principales img {
+    width: auto !important;
+    height: 118px !important;
+    max-width: 300px !important;
+    max-height: none !important;
+    object-fit: contain !important;
+    display: block !important;
+}
+
+.ppa-prensa-logos-principales img:first-child,
+.ppa-prensa-logo-principal:first-child {
+    height: 150px !important;
+    max-width: 380px !important;
+}
+
+.ppa-prensa-logos-principales img:last-child,
+.ppa-prensa-logo-principal:last-child {
+    height: 118px !important;
+    max-width: 290px !important;
+}
+
+.ppa-prensa-separador {
+    width: 1px;
+    height: 118px !important;
+    background: #d8d8d8;
+    flex-shrink: 0;
+}
+
+.ppa-prensa-titulo {
+    font-size: 34px;
+    line-height: 1.2;
+    font-weight: 700;
+    color: #1f2933;
+    margin: 0;
+}
+
+.ppa-prensa-descripcion {
+    font-size: 16px;
+    line-height: 1.65;
+    color: #333333;
+    margin: 0 0 28px;
+}
+
+.ppa-prensa-texto-lectura {
+    font-size: 22px;
+    font-weight: 700;
+    color: #1f2933;
+    margin-bottom: 24px;
+}
+
+.ppa-prensa-logos-secundarios {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    flex-wrap: wrap !important;
+    gap: 22px !important;
+}
+
+.ppa-prensa-logos-secundarios a {
+    display: inline-flex;
+    align-items: center;
+    text-decoration: none;
+}
+
+.ppa-prensa-logo-secundario,
+.ppa-prensa-logos-secundarios img {
+    width: auto !important;
+    height: 52px !important;
+    max-width: 180px !important;
+    max-height: none !important;
+    object-fit: contain !important;
+    display: block !important;
+    transition: opacity 0.2s ease;
+}
+
+.ppa-prensa-logo-secundario:hover,
+.ppa-prensa-logos-secundarios img:hover {
+    opacity: 0.75;
+}
+
+.ppa-prensa-logo-fallback {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 42px;
+    padding: 8px 12px;
+    border: 1px solid #d5d9e2;
+    border-radius: 6px;
+    color: #1f2933;
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    background: #ffffff;
+}
+
+@media (max-width: 768px) {
+    .ppa-prensa-card {
+        grid-template-columns: 1fr;
+        gap: 28px;
+        padding: 24px 18px;
+    }
+
+    .ppa-prensa-fecha {
+        font-size: 14px;
+        margin-bottom: 22px;
+    }
+
+    .ppa-prensa-logos-principales {
+        gap: 22px !important;
+        margin-bottom: 36px !important;
+        margin-left: 0;
+        flex-wrap: wrap;
+    }
+
+    .ppa-prensa-logo-principal,
+    .ppa-prensa-logos-principales img {
+        height: 80px !important;
+        max-width: 220px !important;
+    }
+
+    .ppa-prensa-logos-principales img:first-child,
+    .ppa-prensa-logo-principal:first-child {
+        height: 96px !important;
+        max-width: 250px !important;
+    }
+
+    .ppa-prensa-logos-principales img:last-child,
+    .ppa-prensa-logo-principal:last-child {
+        height: 80px !important;
+        max-width: 210px !important;
+    }
+
+    .ppa-prensa-separador {
+        height: 80px !important;
+    }
+
+    .ppa-prensa-logo-secundario,
+    .ppa-prensa-logos-secundarios img {
+        height: 38px !important;
+        max-width: 140px !important;
+    }
+
+    .ppa-prensa-titulo {
+        font-size: 26px;
+    }
+
+    .ppa-prensa-texto-lectura {
+        font-size: 19px;
+    }
+}
