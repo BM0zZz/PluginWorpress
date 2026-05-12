@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Plugin Prensa AllCMS
  * Description: Plugin propio para gestionar noticias de prensa con logos principales, descripción y enlaces de noticias que muestran automáticamente el logo del medio usando Media Logos.
- * Version: 1.0.3
+ * Version: 1.0.4
  * Author: Lucas Román y Víctor Nieves
  */
 
@@ -59,14 +59,14 @@ function ppa_cargar_assets_admin( $hook ) {
         'ppa-admin-css',
         plugin_dir_url( __FILE__ ) . 'assets/css/admin.css',
         [],
-        '1.0.3'
+        '1.0.4'
     );
 
     wp_enqueue_script(
         'ppa-admin-js',
         plugin_dir_url( __FILE__ ) . 'assets/js/admin.js',
         [ 'jquery' ],
-        '1.0.3',
+        '1.0.4',
         true
     );
 }
@@ -78,7 +78,7 @@ function ppa_cargar_assets_frontend() {
         'ppa-frontend-css',
         plugin_dir_url( __FILE__ ) . 'assets/css/frontend.css',
         [],
-        '1.0.3'
+        '1.0.4'
     );
 }
 
@@ -110,7 +110,7 @@ function ppa_agregar_menu() {
 }
 
 /* =========================================================
-   4. FUNCIONES AUXILIARES PARA MEDIA LOGOS
+   4. FUNCIONES AUXILIARES PARA MEDIA LOGOS Y URLS
 ========================================================= */
 
 function ppa_normalizar_dominio_desde_url( $url ) {
@@ -134,6 +134,32 @@ function ppa_normalizar_dominio_desde_url( $url ) {
     $dominio = preg_replace( '/^www\./i', '', $dominio );
 
     return $dominio;
+}
+
+function ppa_validar_url_noticia( $url ) {
+    $url = trim( $url );
+
+    if ( empty( $url ) ) {
+        return false;
+    }
+
+    if ( ! preg_match( '#^https?://#i', $url ) ) {
+        $url = 'https://' . $url;
+    }
+
+    $url = esc_url_raw( $url );
+
+    if ( empty( $url ) ) {
+        return false;
+    }
+
+    $partes = wp_parse_url( $url );
+
+    if ( empty( $partes['host'] ) ) {
+        return false;
+    }
+
+    return $url;
 }
 
 function ppa_obtener_medio_por_url_noticia( $url_noticia ) {
@@ -243,6 +269,72 @@ function ppa_pagina_listado() {
             <div class="notice notice-success is-dismissible">
                 <p>Noticia guardada correctamente.</p>
             </div>
+
+            <?php
+            $avisos_guardado = get_transient( 'ppa_avisos_guardado_' . get_current_user_id() );
+            delete_transient( 'ppa_avisos_guardado_' . get_current_user_id() );
+            ?>
+
+            <?php if ( is_array( $avisos_guardado ) ) : ?>
+
+                <?php if ( isset( $avisos_guardado['total'] ) ) : ?>
+                    <div class="notice notice-info is-dismissible">
+                        <p>
+                            Enlaces de noticias guardados:
+                            <strong><?php echo intval( $avisos_guardado['total'] ); ?></strong>
+                        </p>
+                    </div>
+                <?php endif; ?>
+
+                <?php if ( ! empty( $avisos_guardado['sin_logo'] ) ) : ?>
+                    <div class="notice notice-warning is-dismissible">
+                        <p>
+                            Algunos enlaces se han guardado, pero no tienen logo asociado en Media Logos:
+                        </p>
+                        <ul>
+                            <?php foreach ( $avisos_guardado['sin_logo'] as $url_sin_logo ) : ?>
+                                <li>
+                                    <code><?php echo esc_html( $url_sin_logo ); ?></code>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                        <p>
+                            Para que aparezca el logo en frontend, añade ese dominio en Media Logos.
+                        </p>
+                    </div>
+                <?php endif; ?>
+
+                <?php if ( ! empty( $avisos_guardado['invalidas'] ) ) : ?>
+                    <div class="notice notice-error is-dismissible">
+                        <p>
+                            Estas URLs no se han guardado porque no parecen válidas:
+                        </p>
+                        <ul>
+                            <?php foreach ( $avisos_guardado['invalidas'] as $url_invalida ) : ?>
+                                <li>
+                                    <code><?php echo esc_html( $url_invalida ); ?></code>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                    </div>
+                <?php endif; ?>
+
+                <?php if ( ! empty( $avisos_guardado['duplicadas'] ) ) : ?>
+                    <div class="notice notice-warning is-dismissible">
+                        <p>
+                            Estas URLs estaban duplicadas y solo se han guardado una vez:
+                        </p>
+                        <ul>
+                            <?php foreach ( $avisos_guardado['duplicadas'] as $url_duplicada ) : ?>
+                                <li>
+                                    <code><?php echo esc_html( $url_duplicada ); ?></code>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                    </div>
+                <?php endif; ?>
+
+            <?php endif; ?>
         <?php endif; ?>
 
         <?php if ( isset( $_GET['eliminado'] ) ) : ?>
@@ -594,32 +686,44 @@ function ppa_guardar_noticia() {
     $enlaces_noticias = [];
     $urls_procesadas  = [];
 
+    $errores_urls_invalidas = [];
+    $errores_sin_logo       = [];
+    $errores_duplicadas     = [];
+
     /*
      * 1. Enlaces individuales ya existentes o añadidos manualmente.
      */
     if ( isset( $_POST['ppa_url_noticia'] ) && is_array( $_POST['ppa_url_noticia'] ) ) {
         foreach ( $_POST['ppa_url_noticia'] as $url_noticia ) {
-            $url_noticia = trim( $url_noticia );
+            $url_original = trim( $url_noticia );
 
-            if ( empty( $url_noticia ) ) {
+            if ( empty( $url_original ) ) {
                 continue;
             }
 
-            if ( ! preg_match( '#^https?://#i', $url_noticia ) ) {
-                $url_noticia = 'https://' . $url_noticia;
+            $url_validada = ppa_validar_url_noticia( $url_original );
+
+            if ( ! $url_validada ) {
+                $errores_urls_invalidas[] = $url_original;
+                continue;
             }
 
-            $url_clave = strtolower( rtrim( $url_noticia, '/' ) );
+            $url_clave = strtolower( rtrim( $url_validada, '/' ) );
 
             if ( in_array( $url_clave, $urls_procesadas, true ) ) {
+                $errores_duplicadas[] = $url_validada;
                 continue;
             }
 
             $urls_procesadas[] = $url_clave;
 
-            $medio = ppa_obtener_medio_por_url_noticia( $url_noticia );
+            $medio = ppa_obtener_medio_por_url_noticia( $url_validada );
 
             if ( ! empty( $medio['url'] ) ) {
+                if ( empty( $medio['logo'] ) ) {
+                    $errores_sin_logo[] = $url_validada;
+                }
+
                 $enlaces_noticias[] = [
                     'nombre' => sanitize_text_field( $medio['nombre'] ),
                     'logo'   => esc_url_raw( $medio['logo'] ),
@@ -638,27 +742,35 @@ function ppa_guardar_noticia() {
         $lineas = preg_split( '/[\r\n]+/', $urls_masivas );
 
         foreach ( $lineas as $url_noticia ) {
-            $url_noticia = trim( $url_noticia );
+            $url_original = trim( $url_noticia );
 
-            if ( empty( $url_noticia ) ) {
+            if ( empty( $url_original ) ) {
                 continue;
             }
 
-            if ( ! preg_match( '#^https?://#i', $url_noticia ) ) {
-                $url_noticia = 'https://' . $url_noticia;
+            $url_validada = ppa_validar_url_noticia( $url_original );
+
+            if ( ! $url_validada ) {
+                $errores_urls_invalidas[] = $url_original;
+                continue;
             }
 
-            $url_clave = strtolower( rtrim( $url_noticia, '/' ) );
+            $url_clave = strtolower( rtrim( $url_validada, '/' ) );
 
             if ( in_array( $url_clave, $urls_procesadas, true ) ) {
+                $errores_duplicadas[] = $url_validada;
                 continue;
             }
 
             $urls_procesadas[] = $url_clave;
 
-            $medio = ppa_obtener_medio_por_url_noticia( $url_noticia );
+            $medio = ppa_obtener_medio_por_url_noticia( $url_validada );
 
             if ( ! empty( $medio['url'] ) ) {
+                if ( empty( $medio['logo'] ) ) {
+                    $errores_sin_logo[] = $url_validada;
+                }
+
                 $enlaces_noticias[] = [
                     'nombre' => sanitize_text_field( $medio['nombre'] ),
                     'logo'   => esc_url_raw( $medio['logo'] ),
@@ -698,6 +810,13 @@ function ppa_guardar_noticia() {
         ], admin_url( 'admin.php' ) ) );
         exit;
     }
+
+    set_transient( 'ppa_avisos_guardado_' . get_current_user_id(), [
+        'invalidas'  => $errores_urls_invalidas,
+        'sin_logo'   => $errores_sin_logo,
+        'duplicadas' => $errores_duplicadas,
+        'total'      => count( $enlaces_noticias ),
+    ], 60 );
 
     wp_redirect( add_query_arg( [
         'page'     => 'prensa-allcms',
