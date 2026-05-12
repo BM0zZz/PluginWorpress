@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Plugin Prensa AllCMS
  * Description: Plugin propio para gestionar noticias de prensa con logos principales, descripción y enlaces de noticias que muestran automáticamente el logo del medio usando Media Logos.
- * Version: 1.0.4
+ * Version: 1.0.5
  * Author: Lucas Román y Víctor Nieves
  */
 
@@ -59,14 +59,14 @@ function ppa_cargar_assets_admin( $hook ) {
         'ppa-admin-css',
         plugin_dir_url( __FILE__ ) . 'assets/css/admin.css',
         [],
-        '1.0.4'
+        '1.0.5'
     );
 
     wp_enqueue_script(
         'ppa-admin-js',
         plugin_dir_url( __FILE__ ) . 'assets/js/admin.js',
         [ 'jquery' ],
-        '1.0.4',
+        '1.0.5',
         true
     );
 }
@@ -78,7 +78,7 @@ function ppa_cargar_assets_frontend() {
         'ppa-frontend-css',
         plugin_dir_url( __FILE__ ) . 'assets/css/frontend.css',
         [],
-        '1.0.4'
+        '1.0.5'
     );
 }
 
@@ -162,6 +162,25 @@ function ppa_validar_url_noticia( $url ) {
     return $url;
 }
 
+function ppa_normalizar_dominio_guardado( $dominio ) {
+    $dominio = strtolower( trim( $dominio ) );
+    $dominio = preg_replace( '#^https?://#i', '', $dominio );
+    $dominio = preg_replace( '/^www\./i', '', $dominio );
+    $dominio = rtrim( $dominio, '/' );
+
+    return $dominio;
+}
+
+function ppa_dominio_coincide( $dominio_noticia, $dominio_guardado ) {
+    if ( $dominio_noticia === $dominio_guardado ) {
+        return true;
+    }
+
+    $sufijo = '.' . $dominio_guardado;
+
+    return substr( $dominio_noticia, -strlen( $sufijo ) ) === $sufijo;
+}
+
 function ppa_obtener_medio_por_url_noticia( $url_noticia ) {
     global $wpdb;
 
@@ -219,15 +238,13 @@ function ppa_obtener_medio_por_url_noticia( $url_noticia ) {
     }
 
     foreach ( $medios as $medio ) {
-        $dominio_guardado = strtolower( trim( $medio->dominio ) );
-        $dominio_guardado = preg_replace( '#^https?://#i', '', $dominio_guardado );
-        $dominio_guardado = preg_replace( '/^www\./i', '', $dominio_guardado );
-        $dominio_guardado = rtrim( $dominio_guardado, '/' );
+        $dominio_guardado = ppa_normalizar_dominio_guardado( $medio->dominio );
 
-        if (
-            $dominio_noticia === $dominio_guardado ||
-            str_ends_with( $dominio_noticia, '.' . $dominio_guardado )
-        ) {
+        if ( empty( $dominio_guardado ) ) {
+            continue;
+        }
+
+        if ( ppa_dominio_coincide( $dominio_noticia, $dominio_guardado ) ) {
             return [
                 'nombre' => sanitize_text_field( $medio->nombre ),
                 'logo'   => esc_url_raw( $medio->logo_url ),
@@ -280,7 +297,7 @@ function ppa_pagina_listado() {
                 <?php if ( isset( $avisos_guardado['total'] ) ) : ?>
                     <div class="notice notice-info is-dismissible">
                         <p>
-                            Enlaces de noticias guardados:
+                            Enlaces de noticias guardados correctamente:
                             <strong><?php echo intval( $avisos_guardado['total'] ); ?></strong>
                         </p>
                     </div>
@@ -289,7 +306,7 @@ function ppa_pagina_listado() {
                 <?php if ( ! empty( $avisos_guardado['sin_logo'] ) ) : ?>
                     <div class="notice notice-warning is-dismissible">
                         <p>
-                            Algunos enlaces se han guardado, pero no tienen logo asociado en Media Logos:
+                            Estos enlaces no se han guardado porque no tienen logo asociado en Media Logos:
                         </p>
                         <ul>
                             <?php foreach ( $avisos_guardado['sin_logo'] as $url_sin_logo ) : ?>
@@ -299,7 +316,7 @@ function ppa_pagina_listado() {
                             <?php endforeach; ?>
                         </ul>
                         <p>
-                            Para que aparezca el logo en frontend, añade ese dominio en Media Logos.
+                            Para que estos enlaces aparezcan en la sección de prensa, primero añade su dominio y logo en Media Logos y después vuelve a guardar la noticia.
                         </p>
                     </div>
                 <?php endif; ?>
@@ -537,7 +554,7 @@ function ppa_pagina_formulario() {
                         </p>
 
                         <p class="description">
-                            Puedes pegar muchos enlaces a la vez, uno por línea. Al guardar, el plugin buscará automáticamente el logo de cada medio usando Media Logos.
+                            Puedes pegar muchos enlaces a la vez, uno por línea. Solo se guardarán los enlaces cuyo dominio tenga logo asociado en Media Logos.
                         </p>
 
                         <hr>
@@ -624,7 +641,7 @@ function ppa_bloque_enlace_noticia( $enlace = [] ) {
         </p>
 
         <p class="description">
-            El plugin buscará automáticamente el logo del medio usando Media Logos.
+            Este enlace solo se guardará si su dominio tiene logo asociado en Media Logos.
         </p>
 
         <?php if ( ! empty( $logo ) ) : ?>
@@ -719,17 +736,20 @@ function ppa_guardar_noticia() {
 
             $medio = ppa_obtener_medio_por_url_noticia( $url_validada );
 
-            if ( ! empty( $medio['url'] ) ) {
-                if ( empty( $medio['logo'] ) ) {
-                    $errores_sin_logo[] = $url_validada;
-                }
-
-                $enlaces_noticias[] = [
-                    'nombre' => sanitize_text_field( $medio['nombre'] ),
-                    'logo'   => esc_url_raw( $medio['logo'] ),
-                    'url'    => esc_url_raw( $medio['url'] ),
-                ];
+            /*
+             * IMPORTANTE:
+             * Si no hay logo en Media Logos, NO se guarda.
+             */
+            if ( empty( $medio['url'] ) || empty( $medio['logo'] ) ) {
+                $errores_sin_logo[] = $url_validada;
+                continue;
             }
+
+            $enlaces_noticias[] = [
+                'nombre' => sanitize_text_field( $medio['nombre'] ),
+                'logo'   => esc_url_raw( $medio['logo'] ),
+                'url'    => esc_url_raw( $medio['url'] ),
+            ];
         }
     }
 
@@ -766,17 +786,20 @@ function ppa_guardar_noticia() {
 
             $medio = ppa_obtener_medio_por_url_noticia( $url_validada );
 
-            if ( ! empty( $medio['url'] ) ) {
-                if ( empty( $medio['logo'] ) ) {
-                    $errores_sin_logo[] = $url_validada;
-                }
-
-                $enlaces_noticias[] = [
-                    'nombre' => sanitize_text_field( $medio['nombre'] ),
-                    'logo'   => esc_url_raw( $medio['logo'] ),
-                    'url'    => esc_url_raw( $medio['url'] ),
-                ];
+            /*
+             * IMPORTANTE:
+             * Si no hay logo en Media Logos, NO se guarda.
+             */
+            if ( empty( $medio['url'] ) || empty( $medio['logo'] ) ) {
+                $errores_sin_logo[] = $url_validada;
+                continue;
             }
+
+            $enlaces_noticias[] = [
+                'nombre' => sanitize_text_field( $medio['nombre'] ),
+                'logo'   => esc_url_raw( $medio['logo'] ),
+                'url'    => esc_url_raw( $medio['url'] ),
+            ];
         }
     }
 
@@ -943,22 +966,14 @@ function ppa_shortcode_prensa_grid() {
                                 $nombre = $enlace['nombre'] ?? '';
                                 ?>
 
-                                <?php if ( ! empty( $url ) ) : ?>
+                                <?php if ( ! empty( $url ) && ! empty( $logo ) ) : ?>
                                     <a href="<?php echo esc_url( $url ); ?>"
                                        target="_blank"
                                        rel="noopener noreferrer"
                                        title="<?php echo esc_attr( $nombre ); ?>">
-
-                                        <?php if ( ! empty( $logo ) ) : ?>
-                                            <img class="ppa-prensa-logo-secundario"
-                                                 src="<?php echo esc_url( $logo ); ?>"
-                                                 alt="<?php echo esc_attr( $nombre ); ?>">
-                                        <?php else : ?>
-                                            <span class="ppa-prensa-logo-fallback">
-                                                <?php echo esc_html( $nombre ?: 'Ver noticia' ); ?>
-                                            </span>
-                                        <?php endif; ?>
-
+                                        <img class="ppa-prensa-logo-secundario"
+                                             src="<?php echo esc_url( $logo ); ?>"
+                                             alt="<?php echo esc_attr( $nombre ); ?>">
                                     </a>
                                 <?php endif; ?>
                             <?php endforeach; ?>
